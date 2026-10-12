@@ -66,4 +66,10 @@ echo ============================================================
 echo    Summary:  PASS !PASS!   FAIL !FAIL!   SKIP !SKIP!
 echo ============================================================
 echo.
+
+echo --- trade log preview (last 8 trades) ---
+python -X utf8 live\trade_log.py --no-prompt --no-daily --limit 8 --tail
+echo.
+echo   (specific day: run the trade-log batch with a date, e.g. 2025-01-10)
+echo.
 pause
