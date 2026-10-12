@@ -196,6 +196,17 @@
   - 산출물: `data/portfolio_results_full.csv` / `data/portfolio_trades_full_best.csv`(1,020건) / `data/full_pred.parquet`
 - [x] **REPORT.md 갱신** — §8-2 신설(전체 101일 행렬·월별 분해·해석), §1 요약, §9 다음 단계, 산출물, 재현 명령
 
+### 완료 — 실전 파이프라인 (live/ 모듈 + 틱 리플레이 골든 검증)
+- [x] **live/ 모듈 7종 + selftest 3종 작성** — `live/feed.py`(MongoFeed), `live/bars.py`(BarStream 10분봉 증분, extract_bars 동일 규칙), `live/state.py`(LiveState 25키 증분), `live/strategy.py`(SignalSource 추상화), `live/trader.py`(IncrementalTrader), `live/replay.py`(bars/ticks), `live/selftest_bars.py` / `live/selftest_state.py` / `live/selftest_replay.py`
+- [x] **검증 1 — 봉**: 실틱 2일(06-25 127,622틱 / 06-26 107,500틱) 증분 집계 vs `extract_bars` 배치 → 2,963봉 `DataFrame.equals` 일치 PASS
+- [x] **검증 2 — state**: `state_for` vs `labeled.parquet`(2025-06-25, 1,162행/25키, 예열 01-06~) → 셀 **100.0000%**(29,050/29,050)·행 **100.0000%** PASS
+- [x] **검증 3 — 트레이더 골든**: 증분 트레이더 vs 백테스트 엔진(full_pred 113,198행/100일) → 거래 **1,020/1,020 일치**(16컬럼, tol 1e-6, max\|diff\|=2.3e-10), ret **+10.44%**(10.4411997727 비트 동일), MDD 7.93%, win 40.0%, blocked 48, avg_pos 0.67, exposed 30.8% PASS
+- [x] **검증 4 — 틱 종단간**: Mongo 틱 20거래일(06-25~07-23, warmup 06-24) → 증분 봉 → 시그널 조인 → 트레이더 → **bars 모드와 완전 동일**: ret +8.05%, 228거래(EOD 135+SELLSIG 93), win 40.8%, blocked 5, MDD 1.60/1.17, 일일수익률 20일 전부 동일, equity_final 10,805,245.90 PASS
+- [x] **파이프라인 등가 완결** — 틱→봉 ✓ · 봉→state ✓ · state→예측 ✓(배치 경로, GPU=로컬 동치 §8-2) · 예측→포트폴리오 ✓(검증 3,4) → "증분 3링크 + 예측 + 트레이더" 전체가 §8-2 확정 결과와 등가 (실전 신호 = 백테스트 신호)
+- [x] **결정**: C#은 **zero-touch**(수정 없음) — 파이썬 독립 페이퍼 트레이더 + 틱 리플레이 검증 경로로 등가 증명
+- [x] **산출물**: live/ 9종 + `data/portfolio_trades_golden_row7.csv` (0.42/CW/SELLSIG 골든 거래 로그 1,020건)
+- [x] **REPORT.md §10 갱신** — 실전 파이프라인 문서화(§1 요약 행, §2 다이어그램, §9 다음 단계·산출물, 부록 재현 명령 7~9)
+
 ### 이슈 — Git 인증
 - 첫 push는 성공했으나 이후 push가 무한 대기 (Git Credential Manager 프롬프트 버그)
 - 원인: ① GCM이 비대화형에서는 대기만 함 ② GitHub git 엔드포인트는 Bearer 인증 거부
@@ -204,6 +215,8 @@
 
 ### 다음 단계 (갱신)
 - [x] ~~**스마트 롱 실전화** — gate 0.42/CW/SELLSIG를 **전체 101일 표본으로 재검증**~~ → **재검증 완료(위), 파라미터 확정**
-- [ ] **실전 파이프라인** — 서버 예측 → 0.42/CW/SELLSIG 포트폴리오 관리 로직 → C# m1.exe 주문 연동, 소액 드라이런
+- [x] ~~**실전 파이프라인 구축 + 등가검증**~~ → **live/ 모듈 구축, 4-part 검증(봉/state/트레이더/틱 종단간) 전부 PASS (위)**
+- [ ] **HTTP 예측 클라이언트(`HttpSignalSource`) + serve 상시화** — :8001 연동, 예측 지연 관리
+- [ ] **C# SendOrder 연동 + 소액 드라이런** — 복기=false 스위치, 페이퍼 검증 후 명시 승인
 - [ ] 모델 카드 라이선스 명시 (`other` → MIT/Apache-2.0 결정 필요) | 데이터 기간 확대(101→365일) 및 5월 희소 구간 보강
 - [ ] 라벨 재설계로 고신뢰 buy 유도 | 추론 가속(ONNX) | Kaggle 토큰 재발급 (채팅 노출됨)

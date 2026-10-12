@@ -1,6 +1,6 @@
 # 라야(Laya) 주식 트레이딩 — 결과 리포트
 
-**작성일**: 2026-10-10 (토)  ·  **갱신**: 2026-10-12 (월) — 스마트 롱 백테스트(§8) + 전체 101일 재검증(§8-2) 추가
+**작성일**: 2026-10-10 (토)  ·  **갱신**: 2026-10-12 (월) — 스마트 롱 백테스트(§8) + 전체 101일 재검증(§8-2) + 실전 파이프라인(§10) 추가
 **대상**: Laya 결정모델(ModernBERT-large 기반)을 10분봉 한국 주식 데이터로 파인튜닝한 결과와 백테스트 성적
 
 ---
@@ -16,6 +16,7 @@
 | 백테스트(완벽예지 상한) | +32.3%, 승률 90.2% → 모델은 상한의 약 15%만 포착 |
 | **스마트 롱 백테스트** (§8) | **+8.05%** (gate 0.42 + 신뢰도비중 + sell신호 청산, MDD 1.6%) vs B&H +2.13% — 롱온리 구조 한계 탈피 |
 | **스마트 롱 재검증** (§8-2, 2026-10-12) | **전체 101일: +10.44%** (MDD 7.9%, 1,020거래) vs B&H +4.42% — 수익의 대부분이 **학습기간 밖(OOS)**에서 발생 (+8.95% / 21일), GPU 예측으로 OOS 20일 **+8.05% 정확 재현** |
+| **실전 파이프라인** (§10, 2026-10-12) | live/ 증분 파이프라인(틱→봉→state→예측→0.42/CW/SELLSIG 트레이더) 구축 — 백테스트와 **거래 1,020/1,020 등가**(+10.44% 비트 동일), 틱 모드 종단간 재현(+8.05%) → 실전 신호 = 검증된 백테스트 신호 |
 
 **핵심 판단**: 모델은 Buy&Hold를 상회하는 **약한 양(+)의 엣지**를 보였으나, 수익이 소수 종목에 집중되고(중앙값 0%), "buy"를 고신뢰로 거의 내지 못하는 구조적 한계가 확인됨. 실전 투입 전 추가 개선이 필요.
 
@@ -50,6 +51,12 @@ stock-model (ModernBERT-large 1024d·28층, 842MB)
    │  serve/laya_api.py (:8001)
    ▼
 C# m1.exe (주문/체결) ← HTTP
+
+[실전 실시간 경로 §10]
+MongoDB 틱(YYYY-MM-DD) ─→ live/(feed → bars → state → 예측 → trader, 0.42/CW/SELLSIG)
+                              │ (HTTP :8001)
+                              ▼
+                         C# m1.exe SendOrder (실주문/복기 게이트) ── 증분 파이프라인 = §8-2 백테스트와 거래 1,020/1,020 등가
 ```
 
 - **라벨**: 30분 스캘핑, ±0.5% (buy ≥ +0.5% / sell ≤ -0.5% / 그 외 hold)
@@ -283,10 +290,82 @@ GPU 예측 = 로컬 예측. 이후 수치는 신뢰 가능.
 
 ---
 
+## 10. 실전 파이프라인 (live/)
+
+**목적**: §8-2에서 확정한 실전 파라미터(gate **0.42** + CW 신뢰도비중 + SELLSIG 청산)를 실시간 환경에서
+그대로 재현하는 파이프라인을 구축한다. 핵심 요구는 **검증된 백테스트와 동등(equivalent)한 실시간 처리** —
+틱이 들어오는 즉시 10분봉 → state → 예측 → 주문 판단까지 배치 경로와 **비트 단위로 동일**하게 흐르도록
+증분(incremental) 구현하고, 틱 리플레이 골든 테스트로 등가성을 증명한다.
+
+**아키텍처 (realtime path)**:
+
+```
+MongoDB 틱 컬렉션 (YYYY-MM-DD)
+   │  live/feed.py        (MongoFeed — 일자 컬렉션 스트림)
+   ▼
+live/bars.py              (BarStream — 10분봉 증분 집계)
+   │   extract_bars와 동일 규칙: KST +9h, 버킷 floor(분//10), 09:00~15:30, 거래량=누적 diff
+   ▼
+live/state.py             (LiveState — 25키 증분 빌더)
+   │   CODE + OHLCV/n_ticks 6 + 지표 18 + 시장맥락 4, 6자리 round
+   ▼
+[실시간 예측: 모델 서버 HTTP :8001;  리플레이: full_pred.parquet 시그널]
+   │  live/strategy.py    (SignalSource 추상화: BarsSignalSource / FrameSignalSource, HTTP 클라이언트는 다음 단계)
+   ▼
+live/trader.py            (IncrementalTrader — gate 0.42, CW 신뢰도비중 min(conf×2, 1), SELLSIG 청산 + EOD 강제청산,
+   │                        상한가 매수차단 open≥전일종가×1.30, 비용 0.015%/방향, 최대 8포지션, 공유 풀)
+   ▼
+C# m1.exe SendOrder       (복기 모드가 실주문 차단 스위치 — 실주문 연동은 페이퍼 검증 후 승인 시)
+```
+
+핵심 원칙: **증분 구현이 배치 결과와 100% 일치**해야 한다. 증분 집계에서 발생하기 쉬운 반올림·경계값·누적
+차이를 셀프테스트로 제거한 뒤에만 실시간 경로를 신뢰한다.
+
+**검증 4종 결과**:
+
+| # | 방법 | 결과 | 판정 |
+|---|---|---|---|
+| 1 | `live/selftest_bars.py` — Mongo 실틱 2일(06-25 127,622틱 / 06-26 107,500틱) 증분 집계 vs `extract_bars` 배치 | 2,963봉 `DataFrame.equals` 일치 | PASS |
+| 2 | `live/selftest_state.py --source parquet` — `state_for` vs `labeled.parquet` (2025-06-25, 1,162행/25키, 예열 01-06~) | 셀 **100.0000%**(29,050/29,050) · 행 **100.0000%** | PASS |
+| 3 | `live/selftest_replay.py` (bars 골든) — 증분 트레이더 vs 백테스트 엔진(full_pred 113,198행/100일) | 거래 **1,020/1,020 일치**(16컬럼, tol 1e-6, max\|diff\|=2.3e-10), ret **+10.44%**(10.4411997727 비트 동일), MDD 7.93%, win 40.0%, blocked 48, avg_pos 0.67, exposed 30.8% | PASS |
+| 4 | `live/replay.py --source ticks` (종단간) — Mongo 틱 20거래일(06-25~07-23, warmup 06-24) → 증분 봉 → 시그널 조인 → 트레이더 | **bars 모드와 완전 동일**: ret +8.05%, 228거래(EOD 135 + SELLSIG 93), win 40.8%, blocked 5, MDD 1.60/1.17, 일일수익률 20일 전부 동일, equity_final 10,805,245.90 | PASS |
+
+**파이프라인 등가 완결 (체인 각 링크)**:
+
+- 틱 → 봉 ✓ (검증 1)
+- 봉 → state ✓ (검증 2)
+- state → 예측 ✓ (배치 경로, GPU = 로컬 동치는 §8-2에서 검증)
+- 예측 → 포트폴리오 ✓ (검증 3, 4)
+
+즉 **"증분 3링크 + 예측 + 트레이더" 전체가 §8-2 확정 결과와 등가**다. 실전 신호 품질 = 백테스트 신호 품질.
+
+**산출물 (live/)**:
+
+| 파일 | 내용 |
+|---|---|
+| `live/feed.py` | Mongo 틱 피드 (MongoFeed) |
+| `live/bars.py` | 10분봉 증분 집계 (BarStream, extract_bars 동일 규칙) |
+| `live/state.py` | 25키 증분 state 빌더 (LiveState) |
+| `live/strategy.py` | 시그널 소스 추상화 (BarsSignalSource / FrameSignalSource) |
+| `live/trader.py` | 증분 트레이더 (IncrementalTrader — 0.42/CW/SELLSIG + EOD) |
+| `live/replay.py` | 리플레이 러너 (bars/ticks 모드) |
+| `live/selftest_bars.py` | 봉 증분 vs 배치 등가 검증 |
+| `live/selftest_state.py` | state 증분 vs labeled 등가 검증 |
+| `live/selftest_replay.py` | 트레이더 증분 vs 백테스트 골든 검증 |
+| `data/portfolio_trades_golden_row7.csv` | 0.42/CW/SELLSIG 골든 거래 로그 1,020건 |
+
+**남은 단계 (실전화)**:
+
+1. `strategy.py`에 **HttpSignalSource** 구현 — 모델 서버(:8001) 연동
+2. `serve/laya_api.py` 상시화 + 예측 지연 관리
+3. C# m1.exe `SendOrder` 실주문 연동 (복기=false 스위치, **페이퍼 검증 후 명시 승인**)
+4. 소액 드라이런 → 실투입
+
+---
+
 ## 9. 다음 단계 (권장)
 
-1. **스마트 롱 실전화** — §8-2에서 gate 0.42/CW/SELLSIG **파라미터 확정 완료**. 다음: 실시간 파이프라인
-   (서버 예측 → 게이트/CW 포트폴리오 관리 → C# m1.exe 주문) 및 소액 드라이런. (진행 중)
+1. **실전화 잔여** — §10 파이프라인 구축·등가검증 **완료**. 남은: HTTP 예측 클라이언트 연결, C# SendOrder 연동(페이퍼 검증 후 승인), 소액 드라이런.
 2. **라벨 재설계** — buy 클래스 불균형 완화(임계값·가중·스윙 라벨 혼합)로 고신뢰 buy 유도 (0.42 게이트의 거래 빈도 자체가 낮음).
 3. **데이터/학습 확대** — 전체 101일 → 더 긴 기간, 클래스 가중, early-stopping.
 4. **추론 가속** — CPU 실시간 한계 극복: ONNX Runtime / 양자화 / 경량화, 또는 추론 서버 상시화.
@@ -317,6 +396,16 @@ GPU 예측 = 로컬 예측. 이후 수치는 신뢰 가능.
 | `backtest/generate_predictions.py` | eval 예측 신호 생성기 (증분 저장, --all-dates 지원) |
 | `train/predict_kaggle/predict_kaggle.py` | Kaggle T4 전체 기간 예측 커널 (self-contained) |
 | `serve/laya_api.py` | 추론 서버 (:8001) |
+| `live/feed.py` | Mongo 틱 피드 (MongoFeed) |
+| `live/bars.py` | 10분봉 증분 집계 (BarStream, extract_bars 동일 규칙) |
+| `live/state.py` | 25키 증분 state 빌더 (LiveState) |
+| `live/strategy.py` | 시그널 소스 추상화 (BarsSignalSource / FrameSignalSource) |
+| `live/trader.py` | 증분 트레이더 (IncrementalTrader — 0.42/CW/SELLSIG + EOD) |
+| `live/replay.py` | 리플레이 러너 (bars/ticks 모드) |
+| `live/selftest_bars.py` | 봉 증분 vs 배치 등가 검증 |
+| `live/selftest_state.py` | state 증분 vs labeled 등가 검증 |
+| `live/selftest_replay.py` | 트레이더 증분 vs 백테스트 골든 검증 |
+| `data/portfolio_trades_golden_row7.csv` | 0.42/CW/SELLSIG 골든 거래 로그 1,020건 |
 
 ---
 
@@ -342,4 +431,16 @@ python backtest/robustness_check.py --n 250 --seed 42
 # 6) 전체 101일 재검증 — GPU 예측 후 백테스트 + 월별 분해
 python backtest/backtest_portfolio.py --input data/full_pred.parquet --out-csv data/portfolio_results_full.csv --trades-csv data/portfolio_trades_full_best.csv
 python backtest/full_window_analysis.py
+
+# 7) 실전 파이프라인 셀프테스트 (증분 == 배치/백테스트 동치)
+python live/selftest_bars.py
+python live/selftest_state.py --source parquet
+python live/selftest_replay.py
+
+# 8) 리플레이 — bars 모드 (골든 100일 +10.44% / eval 슬라이스 +8.05%)
+python live/replay.py --source bars --start-date 2025-01-06 --end-date 2025-07-23
+python live/replay.py --source bars --start-date 2025-06-25 --end-date 2025-07-23
+
+# 9) 리플레이 — 틱 모드 종단간 검증 (Mongo 틱 → 증분 파이프라인, eval 20일 +8.05% / ~60초)
+python live/replay.py --source ticks --start-date 2025-06-24 --trade-start 2025-06-25 --end-date 2025-07-23
 ```
