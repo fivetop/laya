@@ -42,6 +42,14 @@ MongoDB stock2020 (C# m1.exe가 기록한 실시간 틱)
 | `/serve` | 추론 서버 실행 |
 | `/backtest` | 백테스트 실행 |
 
+## 모델 (가중치)
+
+파인튜닝된 가중치는 HuggingFace Hub에 배포됩니다:
+[`romee/laya-stock-model`](https://huggingface.co/romee/laya-stock-model)
+
+803MB 가중치는 이 저장소에 포함되지 않습니다(`.gitignore`).
+`config.MODEL_DIR`(=`stock-model/`)에 내려받거나 `laya.load("romee/laya-stock-model")`로 로드하세요.
+
 ## 데이터 출처
 
 - **MongoDB**: 로컬 `stock2020` (MongoDB 3.4, `C:\Program Files\MongoDB\Server\3.4`)
