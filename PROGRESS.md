@@ -162,6 +162,40 @@
   - HF 계정 확인 = `romee` (기존 가정 `romyoh` 아님)
   - `checkpoint_latest/`(중복 803MB)는 제외하고 업로드
 
+### 완료 — 스마트 롱 포트폴리오 백테스트 (롱온리 탈피)
+- [x] **`backtest/backtest_portfolio.py` 작성·실행** — 공유 풀 1,000만원, 12전략 행렬 + B&H 기준
+  - 진입 게이트(없음/0.38/0.40/0.42/0.45) × 크기(EW/CW) × 청산(SELLSIG/FIXED3)
+  - **최적: gate 0.42 + CW + SELLSIG → +8.05%** (MDD 1.60%, 228거래, 승률 40.8%, 노출 47.6%)
+  - 게이트 없음 -4.61%(노출 99%) → 0.42 +8.05%(노출 48%): **고신뢰 buy만 진입이 관건** — 롱온리 탈피 검증 성공
+  - SELLSIG가 FIXED3보다 우위 (0.42: +7.79~+8.05% vs +4.25~+4.30%), CW > EW, gate 0.45는 4거래뿐(과소표본)
+  - 5종 correctness PASS (결정성/산술/상한가/EOD/non-lookahead) + 독립 재실행 수치 일치(결정적)
+  - 한계: 20일 표본·비단조 게이트 곡선(0.42가 칼날), 승률 40.8%·거래 중앙값 -338원, 상위 5거래 ≈ 수익의 94%
+  - 산출물: `data/portfolio_results.csv`(13행) / `data/portfolio_trades_best.csv`(228거래, 정산 항등 확인)
+- [x] **견고성 검증** (`backtest/robustness_check.py` — 엔진 모듈 재사용, 인프로세스 250샘플)
+  - leave-one-day-out: 0.42/CW/SELLSIG min +5.27%~max +9.33%, 전 일자 >0·>B&H → 단일 일자 의존 아님
+  - 16일 부분표본 ×250: mean +4.57%, p5 +1.46% / 99.2% >0, 89.6% >B&H
+  - 주간 워크포워드 4주: 전부 양수(+3.72/+1.14/+2.96/+1.27%) — 같은 기간 B&H는 3주 음수
+  - 0.42가 0.40을 이기는 빈도 97.2% → 게이트 0.42가 노이즈 아님 (칼날 값 우려 반증)
+  - 산출물: `data/robustness_leave5out.csv`(250행)
+  - **한계**: 같은 20일 내부 통계 — 시점 확장(101일) 재검증 필요
+
+### 완료 — 전체 101일 재검증 (Kaggle T4 GPU, 스마트 롱 파라미터 확정)
+- [x] **전체 기간 예측 (Kaggle T4)** — 커널 `romyoh/laya-stock-predict-v2`
+  - 라벨 161,309행 → cleaning 후 **113,198행/100일** (2025-01-07~07-23), TPU×2 대신 GPU T4×2로 49.3행/s · **38분** 완주
+  - `pip install laya==0.4.0` 누락·id-슬러그 불일치(409)·auto-save draft 경합 3건 해결 후 v2 재생성
+  - 데이터셋 `romyoh/laya-stock-labeled`(private) 업로드, 모델은 HF `romee/laya-stock-model`에서 직접 로드(803MB 재업로드 불필요)
+  - **GPU=로컬 동치 확인**: eval 20일 슬라이스 acc **0.5073 양쪽 동일**, 분포 6행 차이(±1)만 — `data/full_pred.parquet`(1.7MB) 확보
+- [x] **전체 100일 백테스트** (`backtest/backtest_portfolio.py --input data/full_pred.parquet`)
+  - 3,420 타임슬롯·635종목 · 12전략+B&H 행렬 → **0.42/CW/SELLSIG +10.44%** (MDD 7.93%, 1,020거래, 노출 30.8%) vs B&H +4.42%
+  - 게이트 없음 EW는 in-sample **+69.18%** — 학습기간 과적합 허상 (OOS -4.61%와 대비, 게이트의 가치 재확인)
+  - FIXED3 청산 계열은 학습기간 포함 시 전부 음수 → SELLSIG 구조 유지 확정
+- [x] **월별 분해** (`backtest/full_window_analysis.py`) — 0.42/CW/SELLSIG
+  - **OOS(6/25~7/23, 21일) +8.95% vs in-sample(80일) +1.42%** → 수익의 대부분이 학습기간 밖에서 발생
+  - "0.42가 학습기간 과적합으로 잘 나왔다"는 우려를 **정면 반증** (허상은 오히려 게이트 없는 전량 진입 쪽)
+- [x] **파라미터 확정** — **gate 0.42 + CW(신뢰도비중) + SELLSIG 청산** → 실전 파이프라인 단계로.
+  - 산출물: `data/portfolio_results_full.csv` / `data/portfolio_trades_full_best.csv`(1,020건) / `data/full_pred.parquet`
+- [x] **REPORT.md 갱신** — §8-2 신설(전체 101일 행렬·월별 분해·해석), §1 요약, §9 다음 단계, 산출물, 재현 명령
+
 ### 이슈 — Git 인증
 - 첫 push는 성공했으나 이후 push가 무한 대기 (Git Credential Manager 프롬프트 버그)
 - 원인: ① GCM이 비대화형에서는 대기만 함 ② GitHub git 엔드포인트는 Bearer 인증 거부
@@ -169,7 +203,7 @@
 - 추후 해결 권장: `gh auth login` + `gh auth setup-git`
 
 ### 다음 단계 (갱신)
-- [ ] **롱온리 탈피: 스마트 롱 포트폴리오 백테스트** (고신뢰 buy 집중·신뢰도 비중 — 방향 승인됨, 아직 미착수)
-- [ ] 모델 카드 라이선스 명시 (`other` → MIT/Apache-2.0 결정 필요)
-- [ ] 라벨 재설계로 고신뢰 buy 유도 | 추론 가속(ONNX) | C# m1.exe ↔ :8001 드라이런
-- [ ] Kaggle 토큰 재발급 (채팅 노출됨)
+- [x] ~~**스마트 롱 실전화** — gate 0.42/CW/SELLSIG를 **전체 101일 표본으로 재검증**~~ → **재검증 완료(위), 파라미터 확정**
+- [ ] **실전 파이프라인** — 서버 예측 → 0.42/CW/SELLSIG 포트폴리오 관리 로직 → C# m1.exe 주문 연동, 소액 드라이런
+- [ ] 모델 카드 라이선스 명시 (`other` → MIT/Apache-2.0 결정 필요) | 데이터 기간 확대(101→365일) 및 5월 희소 구간 보강
+- [ ] 라벨 재설계로 고신뢰 buy 유도 | 추론 가속(ONNX) | Kaggle 토큰 재발급 (채팅 노출됨)

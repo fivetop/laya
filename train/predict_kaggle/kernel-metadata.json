@@ -1,0 +1,16 @@
+{
+  "id": "romyoh/laya-stock-predict-v2",
+  "title": "Laya Stock Predict V2",
+  "subtitle": "Full 101-day window predictions on T4 GPU -> full_pred.parquet",
+  "code_file": "predict_kaggle.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "docker_image_pinning_type": "latest",
+  "dataset_sources": ["romyoh/laya-stock-labeled"],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}

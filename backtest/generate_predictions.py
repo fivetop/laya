@@ -27,8 +27,11 @@ import config  # noqa: E402
 from pipeline.make_jsonl import select_state_columns, _clean_value  # noqa: E402
 
 
-def build_eval_frame(labeled_path: Path) -> pd.DataFrame:
-    """make_jsonl 과 동일한 drop + 날짜기준 80:20 split 으로 eval 구간 반환."""
+def build_frame(labeled_path: Path, all_dates: bool = False) -> pd.DataFrame:
+    """make_jsonl 과 동일한 drop + 날짜기준 80:20 split.
+
+    all_dates=True 면 split 없이 전체 기간을 반환 (101일 전체 재검증용).
+    """
     df = pd.read_parquet(labeled_path)
     state_cols = select_state_columns(df)
     numeric_cols = [c for c in state_cols if c != "code"]
@@ -38,6 +41,8 @@ def build_eval_frame(labeled_path: Path) -> pd.DataFrame:
     bad = bad | df["code"].isna()
     df = df[~bad].copy()
     df = df.sort_values(["date", "bar_time", "code"], kind="mergesort").reset_index(drop=True)
+    if all_dates:
+        return df
     dates = sorted(df["date"].unique())
     split = int(len(dates) * config.TRAIN_RATIO)
     split = max(1, min(split, len(dates) - 1))
@@ -63,14 +68,16 @@ def main() -> None:
     ap.add_argument("--batch-size", type=int, default=32)
     ap.add_argument("--partial-every", type=int, default=10, help="N배치마다 partial 저장(0=끔)")
     ap.add_argument("--max-dates", type=int, default=0, help="0=전체 eval 날짜, N=마지막 N일만(속도 테스트)")
+    ap.add_argument("--all-dates", action="store_true",
+                    help="80:20 split 없이 전체 기간(101일) 예측 — 전 기간 재검증용")
     args = ap.parse_args()
 
-    df = build_eval_frame(args.labeled)
+    df = build_frame(args.labeled, all_dates=args.all_dates)
     if args.max_dates > 0:
         edates = sorted(df["date"].unique())[-args.max_dates:]
         df = df[df["date"].isin(edates)].copy()
     df = df.reset_index(drop=True)
-    print(f"[eval] rows={len(df):,} dates={df['date'].nunique()} "
+    print(f"[{('all' if args.all_dates else 'eval')}] rows={len(df):,} dates={df['date'].nunique()} "
           f"({df['date'].min()}..{df['date'].max()})", flush=True)
 
     states = states_from_frame(df)
