@@ -1,0 +1,25 @@
+# ─────────────────────────────────────────────────────────────
+# 대용량 모델 가중치 (GitHub 파일당 100MB 제한 초과)
+# 가중치는 HuggingFace Hub 또는 GitHub Releases로 별도 배포한다.
+# ─────────────────────────────────────────────────────────────
+/model/
+/stock-model/model.safetensors
+/stock-model/checkpoint_latest/
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ── 로그 / 임시 산출물 ──
+*.log
+/data/eval_pred.partial.parquet
+
+# ── opencode 세션 상태 (개인 환경) ──
+.omo/
+
+# ── OS ──
+Thumbs.db
+.DS_Store

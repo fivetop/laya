@@ -1,0 +1,11 @@
+{
+  "action": {
+    "type": "choice",
+    "instructions": "Should we buy, hold, or sell this stock for the next 30 minutes?",
+    "criteria": {
+      "buy": "expected return above +0.5% in the next 3 bars",
+      "hold": "return between -0.5% and +0.5%",
+      "sell": "expected return below -0.5% in the next 3 bars"
+    }
+  }
+}

@@ -1,0 +1,8 @@
+# 대용량 데이터/바이너리 — EOL 변환 금지 (add 속도·무결성)
+*.parquet binary
+*.safetensors binary
+*.zip binary
+*.jsonl -text
+
+# 나머지 텍스트는 LF로 정규화
+* text=auto eol=lf

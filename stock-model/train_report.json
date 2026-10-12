@@ -1,0 +1,113 @@
+{
+  "eval_source": "/kaggle/input/datasets/romyoh/laya-stock-data/eval.jsonl",
+  "eval_mode": "held_out",
+  "is_held_out": true,
+  "eval_items": 27725,
+  "note": "Metrics reflect independent held-out evaluation.",
+  "before": {
+    "items": 27725,
+    "loss": 1.1264,
+    "accuracy": 0.3189,
+    "mean_confidence": 0.4061,
+    "ece": 0.0872,
+    "brier": 0.1513,
+    "brier_top1": 0.2274,
+    "by_type": {
+      "choice": {
+        "items": 27725,
+        "loss": 1.1264,
+        "accuracy": 0.3189,
+        "mean_confidence": 0.4061,
+        "ece": 0.0872,
+        "brier": 0.1513,
+        "brier_top1": 0.2274
+      }
+    }
+  },
+  "after": {
+    "items": 27725,
+    "loss": 1.0832,
+    "accuracy": 0.4648,
+    "mean_confidence": 0.4002,
+    "ece": 0.0646,
+    "brier": 0.1213,
+    "brier_top1": 0.2445,
+    "by_type": {
+      "choice": {
+        "items": 27725,
+        "loss": 1.0832,
+        "accuracy": 0.4648,
+        "mean_confidence": 0.4002,
+        "ece": 0.0646,
+        "brier": 0.1213,
+        "brier_top1": 0.2445
+      }
+    }
+  },
+  "comparison": {
+    "delta_accuracy": 0.1459,
+    "delta_loss": -0.0432,
+    "delta_ece": -0.0226,
+    "delta_brier": -0.03,
+    "delta_brier_top1": 0.0171,
+    "delta_mean_confidence": -0.0059
+  },
+  "calibration": {
+    "choice": {
+      "items": 400,
+      "temperature": 1.1709259748458862,
+      "issues": [],
+      "accuracy": 0.45,
+      "mean_confidence": 0.4087623415998001
+    },
+    "score": {
+      "items": 0,
+      "temperature": 1.0,
+      "issues": []
+    },
+    "noul": {
+      "items": 0,
+      "temperature": 1.0,
+      "issues": []
+    }
+  },
+  "abstention_thresholds": {
+    "choice:3-5": 0.5619
+  },
+  "training": {
+    "epochs": 4,
+    "micro_batch": 8,
+    "grad_accum": 8,
+    "encoder_lr": 2.5e-05,
+    "head_lr": 0.0001,
+    "min_lr": 1e-06,
+    "weight_decay": 0.01,
+    "grad_clip": 1.0,
+    "loss": "rlcd",
+    "rl_samples": 4,
+    "sigma_start": 0.4,
+    "sigma_end": 0.1,
+    "w_sph": 0.75,
+    "w_rps": 1.0,
+    "shuffle_options": [],
+    "option_layout": null,
+    "freeze_encoder": false,
+    "calib_max": 400,
+    "calib_frac": 0.1,
+    "calib_seed": 20260922,
+    "seed": 0,
+    "max_len": null,
+    "head_max_len": null,
+    "amp": null,
+    "gradient_checkpointing": null,
+    "log_every": 100,
+    "label_smoothing": 0.0,
+    "text_column": "text",
+    "label_column": "label",
+    "question_id": "action",
+    "instructions": null,
+    "eval_data": "/kaggle/input/datasets/romyoh/laya-stock-data/eval.jsonl",
+    "target_error": 0.1,
+    "min_abstain_n": 10
+  }
+}
