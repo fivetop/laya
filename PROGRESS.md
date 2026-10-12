@@ -150,3 +150,26 @@
 - [ ] Kaggle 토큰 재발급 (채팅 노출됨) + 임시파일 정리
 
 ---
+
+## 2026-10-12 (월)
+
+### 완료 — 공개 배포
+- [x] **GitHub 공개 저장소 업로드** — `github.com/fivetop/laya`
+  - 코드+문서+데이터 41파일 137MB (초기커밋 `2c9da8a`, 모델카드 커밋 `447f92d`)
+  - `.gitignore`·`.gitattributes` 신설, 모델 가중치(1.6GB) 제외
+- [x] **HF Hub 모델 배포** — [`romee/laya-stock-model`](https://huggingface.co/romee/laya-stock-model)
+  - `model.safetensors`(803MB)+설정+토크나이저+모델카드 8파일, public, 커밋 `f3786f1`
+  - HF 계정 확인 = `romee` (기존 가정 `romyoh` 아님)
+  - `checkpoint_latest/`(중복 803MB)는 제외하고 업로드
+
+### 이슈 — Git 인증
+- 첫 push는 성공했으나 이후 push가 무한 대기 (Git Credential Manager 프롬프트 버그)
+- 원인: ① GCM이 비대화형에서는 대기만 함 ② GitHub git 엔드포인트는 Bearer 인증 거부
+- 우회: `git credential fill`로 저장 토큰 추출 → `http.extraheader=Authorization: Basic x-access-token:` 을 한 번만 적용
+- 추후 해결 권장: `gh auth login` + `gh auth setup-git`
+
+### 다음 단계 (갱신)
+- [ ] **롱온리 탈피: 스마트 롱 포트폴리오 백테스트** (고신뢰 buy 집중·신뢰도 비중 — 방향 승인됨, 아직 미착수)
+- [ ] 모델 카드 라이선스 명시 (`other` → MIT/Apache-2.0 결정 필요)
+- [ ] 라벨 재설계로 고신뢰 buy 유도 | 추론 가속(ONNX) | C# m1.exe ↔ :8001 드라이런
+- [ ] Kaggle 토큰 재발급 (채팅 노출됨)
